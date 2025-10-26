@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { apiFetch, buildApiUrl } from "../utils/apiClient.js";
 
 function AccountPage() {
   const [email, setEmail] = useState("");
@@ -34,7 +35,7 @@ function AccountPage() {
       setProfile(null);
 
       try {
-        const response = await fetch(`/api/users/${encodeURIComponent(trimmedEmail)}`);
+        const response = await apiFetch(`/api/users/${encodeURIComponent(trimmedEmail)}`);
         const payload = await response.json();
         if (!response.ok) {
           throw new Error(payload.message || "We could not find an account with that email.");
@@ -172,7 +173,7 @@ function AccountPage() {
           <div className="account-actions">
             <a
               className="wizard-button wizard-button--primary"
-              href={`/api/users/${encodeURIComponent(profile.email)}`}
+              href={buildApiUrl(`/api/users/${encodeURIComponent(profile.email)}`)}
               target="_blank"
               rel="noreferrer"
             >

@@ -32,6 +32,23 @@ Refined onboarding experience for the Super100 cohort. Students claim a handle, 
    - Frontend: http://localhost:5173
    - API server: http://localhost:4000
 
+## Production Build
+1. Build the client bundle:
+   ```bash
+   npm run build
+   ```
+2. Configure production environment variables (see `.env.example`):
+   - Set `NODE_ENV=production` so the API serves the bundled client from `dist/`.
+   - Provide `CORS_ORIGINS` with a comma-separated list of allowed domains.
+   - Point `VITE_API_BASE_URL` to the public URL of your API (for example `https://s100.apnapc.com/api`; leave blank if the API and client share a domain).
+   - Optional: set `TRUST_PROXY` when running behind a load balancer or reverse proxy.
+   - Optional: override `CLIENT_DIST` if the built assets live outside `./dist`.
+3. Start the combined server:
+   ```bash
+   npm start
+   ```
+   The Express server now delivers the static build and exposes the API on the same port (default `4000`).
+
 ## Core API Routes
 | Method | Path | Description |
 | --- | --- | --- |

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../utils/apiClient.js";
 
 const stepSequence = [
   {
@@ -181,7 +182,7 @@ function SignupForm({ onResult, loading }) {
       setLookupState({ status: "pending", message: "" });
 
       try {
-        const response = await fetch(`/api/users/${encodeURIComponent(trimmed)}`, {
+        const response = await apiFetch(`/api/users/${encodeURIComponent(trimmed)}`, {
           signal: controller.signal
         });
 
@@ -273,7 +274,7 @@ function SignupForm({ onResult, loading }) {
     const debounceTimer = setTimeout(async () => {
       setHandleStatus({ state: "pending", message: "" });
       try {
-        const response = await fetch(`/api/handles/${encodeURIComponent(trimmedHandle)}`, {
+        const response = await apiFetch(`/api/handles/${encodeURIComponent(trimmedHandle)}`, {
           signal: controller.signal
         });
         const payload = await response.json();
@@ -458,7 +459,7 @@ function SignupForm({ onResult, loading }) {
     }, {});
 
     try {
-      const response = await fetch("/api/students", {
+      const response = await apiFetch("/api/students", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
