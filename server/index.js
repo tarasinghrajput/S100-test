@@ -1,18 +1,99 @@
 import "dotenv/config";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import compression from "compression";
 import cors from "cors";
 import express from "express";
+import helmet from "helmet";
 import { initDatabase, isDatabaseEnabled } from "./database.js";
 import { sendPasswordResetEmail } from "./email.js";
 import { generatePortfolioCopy } from "./gemini.js";
 import { getUserByEmail, getUserByHandle, upsertUserProfile } from "./store.js";
 
+const PORT = Number(process.env.PORT) || 4000;
+const NODE_ENV = process.env.NODE_ENV ?? "development";
+const isProduction = NODE_ENV === "production";
+const rawClientRoot = process.env.CLIENT_DIST;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CLIENT_DIST = rawClientRoot
+  ? path.resolve(rawClientRoot)
+  : path.resolve(__dirname, "../dist");
+const hasBuiltClient = fs.existsSync(path.join(CLIENT_DIST, "index.html"));
+
+function normalizeOrigin(origin) {
+  return origin ? origin.trim().replace(/\/$/, "") : "";
+}
+
+function buildCorsOptions() {
+  const configuredOrigins =
+    process.env.CORS_ORIGINS ??
+    process.env.APP_BASE_URL ??
+    "";
+
+  const allowedOrigins = configuredOrigins
+    .split(",")
+    .map(normalizeOrigin)
+    .filter(Boolean);
+
+  if (allowedOrigins.length === 0) {
+    if (isProduction) {
+      console.warn(
+        "[api] No CORS_ORIGINS provided; defaulting to permissive CORS in production."
+      );
+    }
+    return {
+      origin: true,
+      credentials: true
+    };
+  }
+
+  return {
+    origin(origin, callback) {
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      const normalized = normalizeOrigin(origin);
+      if (allowedOrigins.includes(normalized)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+    credentials: true
+  };
+}
+
 const app = express();
-const PORT = process.env.PORT || 4000;
 
-app.use(cors());
-app.use(express.json());
+app.disable("x-powered-by");
+app.set("trust proxy", process.env.TRUST_PROXY ?? 1);
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false
+  })
+);
+app.use(cors(buildCorsOptions()));
+app.use(express.json({ limit: "1mb" }));
+app.use(compression());
 
-initDatabase();
+if (isProduction && hasBuiltClient) {
+  app.use(
+    express.static(CLIENT_DIST, {
+      maxAge: "1h",
+      index: false,
+      setHeaders(res, assetPath) {
+        if (assetPath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache");
+        }
+      }
+    })
+  );
+}
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", database: isDatabaseEnabled() ? "ready" : "memory" });
@@ -499,6 +580,56 @@ app.get("/api/users/:email", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`API server running at http://localhost:${PORT}`);
+if (isProduction) {
+  if (!hasBuiltClient) {
+    console.warn(
+      `[api] Production mode enabled but no client build found at ${CLIENT_DIST}.`
+    );
+  } else {
+    app.get("*", (req, res, next) => {
+      if (!req.path || req.path.startsWith("/api/")) {
+        return next();
+      }
+
+      if (req.method.toUpperCase() !== "GET") {
+        return next();
+      }
+
+      return res.sendFile(path.join(CLIENT_DIST, "index.html"));
+    });
+  }
+}
+
+app.use((error, _req, res, _next) => {
+  console.error("[api] Unhandled error:", error);
+  if (res.headersSent) {
+    return;
+  }
+
+  if (error?.message?.includes("CORS")) {
+    res.status(403).json({ message: "Origin not allowed by server configuration." });
+    return;
+  }
+
+  res.status(500).json({ message: "Internal server error." });
 });
+
+async function start() {
+  try {
+    await initDatabase();
+  } catch (error) {
+    console.error("[api] Database initialisation failed:", error);
+  }
+
+  app.listen(PORT, () => {
+    console.log(
+      `[api] Server ready on port ${PORT} (${NODE_ENV} mode${isDatabaseEnabled() ? ", database" : ", memory"} store)`
+    );
+  });
+}
+
+if (NODE_ENV !== "test") {
+  start();
+}
+
+export default app;

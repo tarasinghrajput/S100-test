@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import PortfolioPreview from "../components/PortfolioPreview.jsx";
+import { apiFetch } from "../utils/apiClient.js";
 
 const HANDLE_PATTERN = /^[a-z0-9](?:[a-z0-9-_]{1,28}[a-z0-9])?$/;
 
@@ -42,7 +43,7 @@ function PortfolioPage() {
       setStudent(null);
 
       try {
-        const response = await fetch(`/api/students/${encodeURIComponent(trimmedHandle)}`);
+        const response = await apiFetch(`/api/students/${encodeURIComponent(trimmedHandle)}`);
         const payload = await response.json();
 
         if (!response.ok) {
@@ -113,7 +114,7 @@ function PortfolioPage() {
         setStatus({ state: "pending", message: "Looking up the handle for that email…" });
         setStudent(null);
 
-        const response = await fetch(`/api/users/${encodeURIComponent(trimmedEmail)}`, {
+        const response = await apiFetch(`/api/users/${encodeURIComponent(trimmedEmail)}`, {
           signal: controller.signal
         });
         const payload = await response.json();
